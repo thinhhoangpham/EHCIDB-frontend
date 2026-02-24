@@ -426,13 +426,14 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
 
 ## 11. Implementation Sequence
 
-### Phase 1 — Foundation
-1. Update `next.config.ts` with `output: 'export'`
-2. Install packages: `axios`, `react-hook-form`, `zod`, `@hookform/resolvers`, `clsx`, `tailwind-merge`, `lucide-react`, `date-fns`
-3. Create TypeScript types (`src/types/api.ts`, `auth.ts`, `forms.ts`)
-4. Create API client + modules (`src/lib/api/`)
-5. Create `AuthContext` + wrap root layout
-6. Create `src/lib/utils.ts` with `cn()` helper
+### Phase 1 — Foundation ✅ COMPLETE
+1. ✅ Update `next.config.ts` with `output: 'export'`
+2. ✅ Install packages: `axios`, `react-hook-form`, `zod`, `@hookform/resolvers`, `clsx`, `tailwind-merge`, `lucide-react`, `date-fns`
+3. ✅ Create TypeScript types (`src/types/api.ts`) — `auth.ts` and `forms.ts` deferred to Phase 2
+4. ✅ Create API client + modules (`src/lib/api/client.ts`, `auth.ts`, `patients.ts`, `doctors.ts`, `admin.ts`, `insurance.ts`)
+5. ✅ Create `AuthContext` + wrap root layout + create hooks (`useAuth`, `useAuthGuard`, `useApi`, `useRecentSearches`)
+6. ✅ Create `src/lib/utils.ts` with `cn()`, `formatDate()`, `formatRelativeTime()`
+7. ✅ Create `src/lib/constants.ts` with `ROLES`, `ROLE_DASHBOARD`, `BLOOD_TYPES`, `LOCAL_STORAGE_KEYS`
 
 ### Phase 2 — Auth + Navigation
 7. Build UI primitives (Button, Input, Alert, Spinner, Card, Badge, Table)
