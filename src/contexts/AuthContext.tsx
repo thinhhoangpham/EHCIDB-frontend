@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useEffect, useState, useCallback } from "react";
+import { createContext, useEffect, useState, useCallback, useMemo } from "react";
 import type { User } from "@/types/api";
 import { LOCAL_STORAGE_KEYS } from "@/lib/constants";
 
@@ -28,7 +28,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem(LOCAL_STORAGE_KEYS.TOKEN);
     const raw = localStorage.getItem(LOCAL_STORAGE_KEYS.USER);
-    const user = raw ? (JSON.parse(raw) as User) : null;
+    let user: User | null = null;
+    try {
+      user = raw ? (JSON.parse(raw) as User) : null;
+    } catch {
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.USER);
+    }
     setState({ user, token, isLoading: false });
   }, []);
 
@@ -46,8 +51,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, token: null, isLoading: false });
   }, []);
 
+  const value = useMemo(
+    () => ({ ...state, setAuth, clearAuth }),
+    [state, setAuth, clearAuth]
+  );
+
   return (
-    <AuthContext.Provider value={{ ...state, setAuth, clearAuth }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

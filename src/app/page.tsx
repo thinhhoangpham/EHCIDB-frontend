@@ -1,14 +1,28 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { ROLE_DASHBOARD } from "@/lib/constants";
+import { Spinner } from "@/components/ui/Spinner";
+
 export default function Home() {
+  const { user, token, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (!user || !token) {
+      router.push("/login");
+    } else {
+      router.push(ROLE_DASHBOARD[user.role]);
+    }
+  }, [user, token, isLoading, router]);
+
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <main className="flex flex-col items-center gap-8 p-8">
-        <h1 className="text-4xl font-bold">
-          Welcome to EHCIDB
-        </h1>
-        <p className="text-lg text-gray-600">
-          Emergency Healthcare Critical Information Database System
-        </p>
-      </main>
+      <Spinner size="lg" />
     </div>
   );
 }

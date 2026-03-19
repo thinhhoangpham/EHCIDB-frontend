@@ -31,9 +31,16 @@ export function useRecentSearches() {
         0,
         MAX_SEARCHES
       );
-      localStorage.setItem(LOCAL_STORAGE_KEYS.RECENT_SEARCHES, JSON.stringify(updated));
       return updated;
     });
+    // Sync to localStorage outside the state updater
+    const current = load();
+    const filtered = current.filter((s) => s.emergencyId !== entry.emergencyId);
+    const updated = [{ ...entry, searchedAt: new Date().toISOString() }, ...filtered].slice(
+      0,
+      MAX_SEARCHES
+    );
+    localStorage.setItem(LOCAL_STORAGE_KEYS.RECENT_SEARCHES, JSON.stringify(updated));
   }, []);
 
   const clearSearches = useCallback(() => {

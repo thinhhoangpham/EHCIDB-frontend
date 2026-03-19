@@ -8,7 +8,7 @@ export const updateUser = (id: string, data: Partial<User>) =>
   apiClient.patch<User>(`/admin/users/${id}/`, data).then((r) => r.data);
 
 export const deactivateUser = (id: string) =>
-  apiClient.patch(`/admin/users/${id}/`, { is_active: false });
+  updateUser(id, { is_active: false });
 
 export const getAccessLogs = () =>
   apiClient.get<AccessLog[]>("/admin/access-logs/").then((r) => r.data);

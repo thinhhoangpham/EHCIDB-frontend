@@ -1,11 +1,5 @@
 import type { UserRole, BloodType } from "@/types/api";
 
-export const ROLES: Record<UserRole, UserRole> = {
-  patient: "patient",
-  doctor: "doctor",
-  admin: "admin",
-};
-
 export const ROLE_DASHBOARD: Record<UserRole, string> = {
   patient: "/dashboard/patient",
   doctor: "/dashboard/doctor",
