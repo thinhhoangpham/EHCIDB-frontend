@@ -1,86 +1,95 @@
-# EHCIDB Frontend — Claude Session Notes
+# EHCIDB Frontend
 
 ## Project Overview
 
-Emergency Healthcare Critical Information Database (EHCIDB) — academic prototype for CS5356 (Advanced Database Systems). Provides emergency access to patient medical data.
+EHCIDB Frontend — Next.js 16 + React 19 + TypeScript + Tailwind v4 SPA for the Emergency Healthcare Critical Information Database. Academic prototype for CS5356. Static export to GitHub Pages.
 
 - **Framework:** Next.js 16.1.6 + React 19 + TypeScript + Tailwind v4
 - **Deployment:** GitHub Pages (static export — no SSR, no API routes)
-- **Backend:** Django + MySQL (separate team, REST API)
-- **Full plan:** `docs/FRONTEND_PLAN.md`
+- **Backend:** Django + MySQL REST API (separate repo)
 
----
+## Setup & Commands
 
-## Phase 1 — Foundation (COMPLETED)
+- `npm install` then `npm run dev`
+- `npm run build` for static export
+- API base URL configured via `NEXT_PUBLIC_API_BASE_URL` (default: `http://localhost:8000/api`)
 
-### Changes Made
+## Pages & Routes
 
-| File | Status | Notes |
-|------|--------|-------|
-| `next.config.ts` | Modified | Added `output: "export"`, `images: { unoptimized: true }` |
-| `src/lib/utils.ts` | Created | `cn()` helper (clsx + tailwind-merge), `formatDate()`, `formatRelativeTime()` |
-| `src/lib/constants.ts` | Created | `ROLES`, `ROLE_DASHBOARD`, `BLOOD_TYPES`, `LOCAL_STORAGE_KEYS` |
-| `src/types/api.ts` | Created | All TypeScript types (see below) |
-| `src/lib/api/client.ts` | Created | Axios instance + JWT request interceptor + 401 response interceptor |
-| `src/lib/api/auth.ts` | Created | `login()`, `logout()` |
-| `src/lib/api/patients.ts` | Created | Full CRUD for profile, allergies, conditions, medications, devices, contacts, insurance |
-| `src/lib/api/doctors.ts` | Created | `getPatientByEmergencyId()`, `PatientEmergencyData` interface |
-| `src/lib/api/admin.ts` | Created | `getUsers()`, `updateUser()`, `deactivateUser()`, `getAccessLogs()` |
-| `src/lib/api/insurance.ts` | Created | `getProviders()`, `addProvider()`, `updateProvider()`, `deleteProvider()` |
-| `src/contexts/AuthContext.tsx` | Created | `AuthProvider` + `AuthContext` with `setAuth`, `clearAuth`, `isLoading` |
-| `src/hooks/useAuth.ts` | Created | Consumes `AuthContext`, throws if used outside provider |
-| `src/hooks/useAuthGuard.ts` | Created | Redirects to `/login` if no token; redirects to correct dashboard if wrong role |
-| `src/hooks/useApi.ts` | Created | Generic `{ data, loading, error, execute }` wrapper for any API function |
-| `src/hooks/useRecentSearches.ts` | Created | Doctor's last 10 searches, persisted in localStorage |
-| `src/app/layout.tsx` | Modified | Wrapped `{children}` with `<AuthProvider>` |
+| Route | Role | Description |
+|-------|------|-------------|
+| `/` | Public | Welcome/landing stub |
+| `/login` | Public | Email + password login form; redirects to role dashboard on success |
+| `/register` | Public | Registration form |
+| `/dashboard/patient` | patient | Tabs: **Analytics** (profile summary, admission history, billing, test results pie chart), **Emergency Card** (view/edit own emergency profile — allergies, conditions, medications, devices, emergency contacts) |
+| `/dashboard/doctor` | doctor | Tabs: **Analytics** (KPI stat cards, admissions over time, conditions breakdown, test results, my admissions table with View Card button), **Emergency Search** (search by name or Emergency ID, view draggable patient emergency card popup, recent searches list) |
+| `/dashboard/admin` | admin | Tabs: **Analytics** (system-wide KPI cards, admissions over time, admissions by type, top 10 conditions, billing by insurance, demographics, test results, recent admissions table), **User Management** (paginated user table, activate/deactivate toggle), **Access Logs** (paginated audit log), **Insurance Providers** (list, add, delete) |
 
-### Packages Installed
+## Architecture
 
-```
-axios react-hook-form zod @hookform/resolvers clsx tailwind-merge lucide-react date-fns
-```
+### API Layer (`src/lib/api/`)
 
-### TypeScript Types (src/types/api.ts)
+| File | What it exports |
+|------|-----------------|
+| `client.ts` | Configured Axios instance; request interceptor attaches Bearer token; response interceptor clears auth and redirects to `/login` on 401 |
+| `auth.ts` | `login()`, `logout()` |
+| `emergency.ts` | All emergency-data types and API functions — patient CRUD (allergies, conditions, medications, devices, contacts), doctor search/card lookup (`searchPatients`, `getPatientEmergencyCard`), admin user/log/insurance management (`getUsers`, `updateUser`, `getAccessLogs`, `getInsuranceProviders`, `addInsuranceProvider`, `deleteInsuranceProvider`) |
+| `dashboard.ts` | `getAdminDashboard()`, `getDoctorDashboard()`, `getPatientDashboard()` with full typed response interfaces (`AdminDashboard`, `DoctorDashboard`, `PatientDashboard`) |
+| `patients.ts` | Legacy patient profile CRUD (predates `emergency.ts`; may overlap) |
+| `doctors.ts` | Legacy doctor patient lookup (predates `emergency.ts`; may overlap) |
+| `admin.ts` | Legacy admin functions (predates `emergency.ts`; may overlap) |
+| `insurance.ts` | Legacy insurance provider CRUD (predates `emergency.ts`; may overlap) |
 
-Key types defined — student contributed the four medical record types:
+### Components
 
-- `UserRole` — `"patient" | "doctor" | "admin"`
-- `User`, `AuthResponse`
-- `BloodType` — 8-value union
-- `PatientProfile`
-- `Severity` — `"mild" | "moderate" | "severe"` (shared by Allergy + Condition)
-- `Allergy` — id, name, severity, critical_flag, notes?
-- `Condition` — id, name, severity, critical_flag, notes?
-- `Medication` — id, name, dosage, frequency, start_date, end_date?, notes?
-- `Device` — id, name, description?, implanted_date?, notes?
-- `EmergencyContact`, `InsuranceInfo`, `InsuranceProvider`
-- `CoverageStatus` — `"active" | "inactive" | "pending"`
-- `AccessLog`
+- **Layout:** `DashboardShell` (sticky top nav with EHCIDB brand, user name, role badge, logout button), `AuthPageLayout` (centered card layout for login/register)
+- **Dashboard:** `StatCard` (reusable KPI card with icon, title, value, optional subtitle)
+- **UI Primitives:** `Button` (variants: primary/secondary/danger/ghost; `loading` prop), `Input` (label, error), `Card`, `Alert` (variants: success/error/warning), `Spinner` (sizes: sm/md/lg)
 
-### Auth Architecture
+### Hooks
 
-- `localStorage` keys: `ehcidb_token`, `ehcidb_refresh`, `ehcidb_user`, `ehcidb_recent_searches`
-- `AuthContext` initializes with `isLoading: true` to prevent redirect flash before localStorage is read
-- Axios response interceptor auto-redirects to `/login` on any 401
-- `useAuthGuard(role?)` — call at top of each dashboard layout to enforce role access
+| Hook | Description |
+|------|-------------|
+| `useAuth` | Consumes `AuthContext`; throws if used outside `AuthProvider` |
+| `useAuthGuard(role?)` | Redirects to `/login` if unauthenticated; redirects to correct dashboard if wrong role; returns `{ ready, user }` |
+| `useApi` | Generic `{ data, loading, error, execute }` wrapper with stale-response guard (request ID ref) |
+| `useRecentSearches` | Manages doctor's last 10 patient searches; persisted to localStorage; exposes `searches`, `addSearch`, `clearSearches` |
 
----
+### State Management
 
-## Phase 2 — Next (Auth + Navigation)
+- `AuthContext` (`src/contexts/AuthContext.tsx`) for global auth state — `user`, `token`, `isLoading`, `setAuth`, `clearAuth`
+- No external state library
+- localStorage for tokens (`ehcidb_token`, `ehcidb_refresh`, `ehcidb_user`) and recent searches (`ehcidb_recent_searches`)
 
-Per `docs/FRONTEND_PLAN.md` Section 11:
+### Auth Flow
 
-7. Build UI primitives: `Button`, `Input`, `Alert`, `Spinner`, `Card`, `Badge`, `Table` → `src/components/ui/`
-8. Build layout components: `TopNav`, `Sidebar`, `MobileNav`, `DashboardShell` → `src/components/layout/`
-9. Build login page + `LoginForm` → `src/app/login/page.tsx`
-10. Implement dashboard layouts with `useAuthGuard` → `src/app/dashboard/layout.tsx` + role sub-layouts
+- JWT tokens obtained from `/api/auth/login/`
+- Stored in localStorage via `LOCAL_STORAGE_KEYS` constants
+- Axios request interceptor attaches `Authorization: Bearer <token>` on every request
+- Axios response interceptor on 401: clears localStorage, redirects to `/login` (guarded against duplicate redirects with `isRedirecting` flag)
+- `useAuthGuard` enforces role-based route protection on dashboard pages
 
----
+## Key Conventions
 
-## Key Decisions & Conventions
+- `cn()` (`src/lib/utils.ts`) for all conditional Tailwind classnames — wraps `clsx` + `tailwind-merge`
+- `"use client"` on all interactive components (required for static export)
+- recharts for data visualization (LineChart, BarChart, PieChart)
+- lucide-react for icons
+- Tab pattern: `useState<TabId>` for active tab, data fetched inside each tab component on mount
+- `LOCAL_STORAGE_KEYS` constant used for all localStorage key strings
+- `ROLE_DASHBOARD` constant maps `UserRole` to dashboard route
 
-- `cn()` from `src/lib/utils.ts` — use for all conditional Tailwind classnames
-- API base URL from `NEXT_PUBLIC_API_BASE_URL` env var (default: `http://localhost:8000/api`)
-- Create `.env.local` with `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api` for local dev
-- No external state library — React Context + `useState` only
-- `Omit<T, "id">` pattern used for POST payloads (id assigned by backend)
+## Packages
+
+| Package | Purpose |
+|---------|---------|
+| `next` 16.1.6 | Framework, static export |
+| `react` 19.2.3 | UI |
+| `typescript` ^5 | Type safety |
+| `tailwindcss` ^4 | Styling |
+| `axios` ^1 | HTTP client |
+| `recharts` ^3 | Charts |
+| `lucide-react` ^0.575 | Icons |
+| `date-fns` ^4 | Date formatting |
+| `clsx` + `tailwind-merge` | Class name utilities |
+| `react-hook-form` + `zod` + `@hookform/resolvers` | Installed, not yet wired up in forms |

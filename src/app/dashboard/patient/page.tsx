@@ -1,84 +1,716 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
+  Plus,
+  X,
+  AlertTriangle,
+  Shield,
+  Heart,
+  Pill,
+  Smartphone,
+  Users,
+  FileText,
   Activity,
   DollarSign,
-  Heart,
-  Stethoscope,
-  User,
 } from "lucide-react";
 import {
   PieChart,
   Pie,
   Cell,
+  ResponsiveContainer,
   Tooltip,
   Legend,
-  ResponsiveContainer,
 } from "recharts";
 
 import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { useApi } from "@/hooks/useApi";
-import { getPatientDashboard } from "@/lib/api/dashboard";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { cn } from "@/lib/utils";
+import {
+  getPatientProfile,
+  addAllergy,
+  deleteAllergy,
+  addCondition,
+  deleteCondition,
+  addMedication,
+  deleteMedication,
+  addDevice,
+  deleteDevice,
+  addEmergencyContact,
+  updateEmergencyContact,
+  deleteEmergencyContact,
+} from "@/lib/api/emergency";
+import type { PatientProfile, EmergencyContactInfo } from "@/lib/api/emergency";
+import { getPatientDashboard } from "@/lib/api/dashboard";
+import type { PatientDashboard } from "@/lib/api/dashboard";
 
-const BILLING_PALETTE = [
-  "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444",
-  "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1",
+// ---- Helpers ----
+function formatCurrency(value: number): string {
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+}
+
+// ---- Severity badge ----
+function SeverityBadge({ severity }: { severity: string }) {
+  const styles: Record<string, string> = {
+    Severe: "bg-red-100 text-red-800",
+    Moderate: "bg-yellow-100 text-yellow-800",
+    Mild: "bg-green-100 text-green-800",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-block rounded-full px-2 py-0.5 text-xs font-semibold",
+        styles[severity] ?? "bg-gray-100 text-gray-700"
+      )}
+    >
+      {severity}
+    </span>
+  );
+}
+
+// ---- Critical badge ----
+function CriticalBadge({ critical }: { critical: boolean }) {
+  return critical ? (
+    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+      <AlertTriangle className="h-3 w-3" />
+      Critical
+    </span>
+  ) : (
+    <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+      Non-critical
+    </span>
+  );
+}
+
+// ---- Section card wrapper ----
+function SectionCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-gray-50">
+        <span className="text-blue-500">{icon}</span>
+        <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">{title}</h3>
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
+// ---- Inline add form ----
+type FieldDef =
+  | { name: string; label: string; type?: "text"; placeholder?: string }
+  | { name: string; label: string; type: "severity-select" }
+  | { name: string; label: string; type: "boolean-select" };
+
+interface AddFormProps {
+  fields: FieldDef[];
+  onSubmit: (values: Record<string, string>) => Promise<void>;
+  onCancel: () => void;
+  submitLabel?: string;
+}
+
+function AddForm({ fields, onSubmit, onCancel, submitLabel = "Add" }: AddFormProps) {
+  const [values, setValues] = useState<Record<string, string>>(
+    Object.fromEntries(fields.map((f) => [f.name, ""]))
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await onSubmit(values);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-3 space-y-3 border-t border-gray-100 pt-3">
+      {fields.map((f) => (
+        <div key={f.name}>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+          {f.type === "severity-select" ? (
+            <select
+              value={values[f.name]}
+              onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+              required
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">Select severity...</option>
+              <option value="Mild">Mild</option>
+              <option value="Moderate">Moderate</option>
+              <option value="Severe">Severe</option>
+            </select>
+          ) : f.type === "boolean-select" ? (
+            <select
+              value={values[f.name]}
+              onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+              required
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">Select...</option>
+              <option value="false">No</option>
+              <option value="true">Yes — Critical</option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={values[f.name]}
+              placeholder={"placeholder" in f ? f.placeholder : undefined}
+              onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+              required
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500"
+            />
+          )}
+        </div>
+      ))}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button type="submit" loading={submitting} className="text-xs px-3 py-1.5 h-auto">
+          {submitLabel}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-xs px-3 py-1.5 h-auto"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// ---- Contact edit form ----
+interface ContactFormProps {
+  initial?: EmergencyContactInfo;
+  onSubmit: (values: { contact_name: string; relationship: string; phone_number: string }) => Promise<void>;
+  onCancel: () => void;
+  submitLabel?: string;
+}
+
+function ContactForm({ initial, onSubmit, onCancel, submitLabel = "Save" }: ContactFormProps) {
+  const [values, setValues] = useState({
+    contact_name: initial?.contact_name ?? "",
+    relationship: initial?.relationship ?? "",
+    phone_number: initial?.phone_number ?? "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await onSubmit(values);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-3 space-y-3 border-t border-gray-100 pt-3">
+      {[
+        { name: "contact_name" as const, label: "Name", placeholder: "Full name" },
+        { name: "relationship" as const, label: "Relationship", placeholder: "e.g. Spouse" },
+        { name: "phone_number" as const, label: "Phone", placeholder: "e.g. 555-0001" },
+      ].map((f) => (
+        <div key={f.name}>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+          <input
+            type="text"
+            value={values[f.name]}
+            placeholder={f.placeholder}
+            onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+            required
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+      ))}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button type="submit" loading={submitting} className="text-xs px-3 py-1.5 h-auto">
+          {submitLabel}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-xs px-3 py-1.5 h-auto"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// ---- Delete button ----
+function DeleteButton({ onDelete }: { onDelete: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+
+  const handleClick = async () => {
+    setBusy(true);
+    try {
+      await onDelete();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={busy}
+      className="flex-shrink-0 rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40"
+      aria-label="Delete"
+    >
+      {busy ? <Spinner size="sm" /> : <X className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+// ---- Admission type badge ----
+function AdmissionTypeBadge({ type }: { type: string }) {
+  const styles: Record<string, string> = {
+    Emergency: "bg-red-100 text-red-800",
+    Urgent: "bg-yellow-100 text-yellow-800",
+    Elective: "bg-blue-100 text-blue-800",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-block rounded-full px-2 py-0.5 text-xs font-semibold",
+        styles[type] ?? "bg-gray-100 text-gray-700"
+      )}
+    >
+      {type}
+    </span>
+  );
+}
+
+// ---- Test result badge ----
+function TestResultBadge({ result }: { result: string }) {
+  const styles: Record<string, string> = {
+    Normal: "bg-green-100 text-green-800",
+    Abnormal: "bg-red-100 text-red-800",
+    Inconclusive: "bg-yellow-100 text-yellow-800",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-block rounded-full px-2 py-0.5 text-xs font-semibold",
+        styles[result] ?? "bg-gray-100 text-gray-700"
+      )}
+    >
+      {result}
+    </span>
+  );
+}
+
+// ---- Emergency Info Tab ----
+interface EmergencyInfoTabProps {
+  profile: PatientProfile;
+  onRefresh: () => Promise<void>;
+}
+
+function EmergencyInfoTab({ profile, onRefresh }: EmergencyInfoTabProps) {
+  const [showAddAllergy, setShowAddAllergy] = useState(false);
+  const [showAddCondition, setShowAddCondition] = useState(false);
+  const [showAddMedication, setShowAddMedication] = useState(false);
+  const [showAddDevice, setShowAddDevice] = useState(false);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [editingContactId, setEditingContactId] = useState<number | null>(null);
+
+  return (
+    <>
+      {/* Emergency info table */}
+      <div className="mb-6 rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+            Emergency Information
+          </h3>
+        </div>
+        <table className="w-full text-sm">
+          <tbody>
+            {[
+              { label: "Emergency ID", value: profile.emergency_identifier },
+              { label: "Blood Type", value: profile.blood_type },
+              { label: "Gender", value: profile.gender },
+            ].map((row, i) => (
+              <tr key={row.label} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                <td className="px-5 py-3 font-medium text-gray-600 w-40">{row.label}</td>
+                <td className="px-5 py-3 text-gray-900 font-semibold">{row.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Two-column grid for sections */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+
+        {/* Allergies */}
+        <SectionCard title="Allergies" icon={<Shield className="h-4 w-4" />}>
+          <ul className="space-y-2">
+            {profile.allergies.length === 0 && (
+              <li className="text-sm text-gray-400">No allergies recorded</li>
+            )}
+            {profile.allergies.map((a) => (
+              <li key={a.allergy_id} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-gray-800 flex-1">{a.allergy_name}</span>
+                <SeverityBadge severity={a.severity} />
+                <DeleteButton
+                  onDelete={async () => {
+                    await deleteAllergy(a.allergy_id);
+                    await onRefresh();
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+          {showAddAllergy ? (
+            <AddForm
+              fields={[
+                { name: "allergy_name", label: "Allergy Name", placeholder: "e.g. Penicillin" },
+                { name: "severity", label: "Severity", type: "severity-select" },
+              ]}
+              onSubmit={async (v) => {
+                await addAllergy({ allergy_name: v.allergy_name, severity: v.severity });
+                setShowAddAllergy(false);
+                await onRefresh();
+              }}
+              onCancel={() => setShowAddAllergy(false)}
+              submitLabel="Add Allergy"
+            />
+          ) : (
+            <button
+              onClick={() => setShowAddAllergy(true)}
+              className="mt-3 flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Allergy
+            </button>
+          )}
+        </SectionCard>
+
+        {/* Medical Conditions */}
+        <SectionCard title="Medical Conditions" icon={<Heart className="h-4 w-4" />}>
+          <ul className="space-y-2">
+            {profile.conditions.length === 0 && (
+              <li className="text-sm text-gray-400">No conditions recorded</li>
+            )}
+            {profile.conditions.map((c) => (
+              <li key={c.condition_id} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-gray-800 flex-1">{c.condition_name}</span>
+                <CriticalBadge critical={c.critical_flag} />
+                <DeleteButton
+                  onDelete={async () => {
+                    await deleteCondition(c.condition_id);
+                    await onRefresh();
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+          {showAddCondition ? (
+            <AddForm
+              fields={[
+                {
+                  name: "condition_name",
+                  label: "Condition Name",
+                  placeholder: "e.g. Diabetes",
+                },
+                {
+                  name: "critical_flag",
+                  label: "Critical?",
+                  type: "boolean-select",
+                },
+              ]}
+              onSubmit={async (v) => {
+                await addCondition({
+                  condition_name: v.condition_name,
+                  critical_flag: v.critical_flag === "true",
+                });
+                setShowAddCondition(false);
+                await onRefresh();
+              }}
+              onCancel={() => setShowAddCondition(false)}
+              submitLabel="Add Condition"
+            />
+          ) : (
+            <button
+              onClick={() => setShowAddCondition(true)}
+              className="mt-3 flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Condition
+            </button>
+          )}
+        </SectionCard>
+
+        {/* Medications */}
+        <SectionCard title="Medications" icon={<Pill className="h-4 w-4" />}>
+          <ul className="space-y-2">
+            {profile.medications.length === 0 && (
+              <li className="text-sm text-gray-400">No medications recorded</li>
+            )}
+            {profile.medications.map((m) => (
+              <li key={m.medication_id} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-gray-800 flex-1">
+                  {m.medication_name}{" "}
+                  <span className="text-gray-500 text-xs">{m.dosage}</span>
+                </span>
+                <DeleteButton
+                  onDelete={async () => {
+                    await deleteMedication(m.medication_id);
+                    await onRefresh();
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+          {showAddMedication ? (
+            <AddForm
+              fields={[
+                {
+                  name: "medication_name",
+                  label: "Medication Name",
+                  placeholder: "e.g. Metformin",
+                },
+                { name: "dosage", label: "Dosage", placeholder: "e.g. 500mg" },
+              ]}
+              onSubmit={async (v) => {
+                await addMedication({ medication_name: v.medication_name, dosage: v.dosage });
+                setShowAddMedication(false);
+                await onRefresh();
+              }}
+              onCancel={() => setShowAddMedication(false)}
+              submitLabel="Add Medication"
+            />
+          ) : (
+            <button
+              onClick={() => setShowAddMedication(true)}
+              className="mt-3 flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Medication
+            </button>
+          )}
+        </SectionCard>
+
+        {/* Devices */}
+        <SectionCard title="Medical Devices" icon={<Smartphone className="h-4 w-4" />}>
+          <ul className="space-y-2">
+            {profile.devices.length === 0 && (
+              <li className="text-sm text-gray-400">No devices recorded</li>
+            )}
+            {profile.devices.map((d) => (
+              <li key={d.device_id} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-gray-800 flex-1">
+                  {d.device_name}{" "}
+                  <span className="text-gray-500 text-xs">/ {d.device_type}</span>
+                </span>
+                <DeleteButton
+                  onDelete={async () => {
+                    await deleteDevice(d.device_id);
+                    await onRefresh();
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+          {showAddDevice ? (
+            <AddForm
+              fields={[
+                { name: "device_name", label: "Device Name", placeholder: "e.g. Pacemaker" },
+                { name: "device_type", label: "Device Type", placeholder: "e.g. Cardiac" },
+              ]}
+              onSubmit={async (v) => {
+                await addDevice({ device_name: v.device_name, device_type: v.device_type });
+                setShowAddDevice(false);
+                await onRefresh();
+              }}
+              onCancel={() => setShowAddDevice(false)}
+              submitLabel="Add Device"
+            />
+          ) : (
+            <button
+              onClick={() => setShowAddDevice(true)}
+              className="mt-3 flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Device
+            </button>
+          )}
+        </SectionCard>
+      </div>
+
+      {/* Emergency Contacts — full width */}
+      <div className="mb-6">
+        <SectionCard title="Emergency Contacts" icon={<Users className="h-4 w-4" />}>
+          <div className="space-y-3">
+            {profile.emergency_contacts.length === 0 && (
+              <p className="text-sm text-gray-400">No emergency contacts recorded</p>
+            )}
+            {profile.emergency_contacts.map((c) =>
+              editingContactId === c.contact_id ? (
+                <div key={c.contact_id} className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                  <ContactForm
+                    initial={c}
+                    onSubmit={async (values) => {
+                      await updateEmergencyContact(c.contact_id, values);
+                      setEditingContactId(null);
+                      await onRefresh();
+                    }}
+                    onCancel={() => setEditingContactId(null)}
+                    submitLabel="Save Contact"
+                  />
+                </div>
+              ) : (
+                <div
+                  key={c.contact_id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 px-4 py-2.5"
+                >
+                  <div className="text-sm text-gray-800">
+                    <span className="font-medium">{c.contact_name}</span>
+                    <span className="mx-2 text-gray-400">|</span>
+                    <span className="text-gray-600">{c.relationship}</span>
+                    <span className="mx-2 text-gray-400">|</span>
+                    <span className="text-gray-600">{c.phone_number}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingContactId(c.contact_id)}
+                      className="rounded px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-50 transition"
+                    >
+                      Edit
+                    </button>
+                    <DeleteButton
+                      onDelete={async () => {
+                        await deleteEmergencyContact(c.contact_id);
+                        await onRefresh();
+                      }}
+                    />
+                  </div>
+                </div>
+              )
+            )}
+
+            {showAddContact ? (
+              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <ContactForm
+                  onSubmit={async (values) => {
+                    await addEmergencyContact(values);
+                    setShowAddContact(false);
+                    await onRefresh();
+                  }}
+                  onCancel={() => setShowAddContact(false)}
+                  submitLabel="Add Contact"
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAddContact(true)}
+                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Contact
+              </button>
+            )}
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* Insurance — read-only */}
+      <SectionCard title="Insurance" icon={<FileText className="h-4 w-4" />}>
+        {profile.insurance === null ? (
+          <p className="text-sm text-gray-400">No insurance information on file</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+            {[
+              { label: "Provider", value: profile.insurance.provider_name },
+              { label: "Plan", value: profile.insurance.plan_type },
+              { label: "Member ID", value: profile.insurance.member_id },
+              { label: "Status", value: profile.insurance.coverage_status },
+            ].map((row) => (
+              <div key={row.label} className="flex items-baseline gap-2">
+                <span className="text-gray-500 w-24 flex-shrink-0">{row.label}:</span>
+                <span className="font-medium text-gray-900">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+    </>
+  );
+}
+
+// ---- Analytics Tab ----
+const BADGE_COLORS = [
+  "bg-blue-100 text-blue-800",
+  "bg-purple-100 text-purple-800",
+  "bg-green-100 text-green-800",
+  "bg-yellow-100 text-yellow-800",
+  "bg-pink-100 text-pink-800",
+  "bg-indigo-100 text-indigo-800",
 ];
 
-const TEST_COLORS: Record<string, string> = {
+const TEST_RESULT_COLORS: Record<string, string> = {
   Normal: "#22c55e",
   Abnormal: "#ef4444",
   Inconclusive: "#f59e0b",
 };
 
-const CONDITION_COLORS = [
-  "bg-blue-100 text-blue-700",
-  "bg-purple-100 text-purple-700",
-  "bg-green-100 text-green-700",
-  "bg-amber-100 text-amber-700",
-  "bg-red-100 text-red-700",
-  "bg-cyan-100 text-cyan-700",
-  "bg-pink-100 text-pink-700",
-  "bg-indigo-100 text-indigo-700",
-];
-
-const MEDICATION_COLORS = [
-  "bg-teal-100 text-teal-700",
-  "bg-orange-100 text-orange-700",
-  "bg-violet-100 text-violet-700",
-  "bg-lime-100 text-lime-700",
-  "bg-sky-100 text-sky-700",
-  "bg-rose-100 text-rose-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-yellow-100 text-yellow-700",
-];
-
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <h3 className="text-base font-semibold text-gray-900 mb-4">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-export default function PatientDashboardPage() {
-  const { ready } = useAuthGuard("patient");
-  const { data, loading, error, execute } = useApi(getPatientDashboard);
-
-  const load = useCallback(() => { execute(); }, [execute]);
+function AnalyticsTab() {
+  const [data, setData] = useState<PatientDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (ready) load();
-  }, [ready, load]);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getPatientDashboard()
+      .then((d) => {
+        if (!cancelled) {
+          setData(d);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load analytics");
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  if (!ready || loading) {
+  if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <Spinner size="lg" />
       </div>
     );
@@ -86,119 +718,149 @@ export default function PatientDashboardPage() {
 
   if (error) {
     return (
-      <DashboardShell>
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">
-          Failed to load dashboard data: {error}
-        </div>
-      </DashboardShell>
+      <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">
+        Failed to load analytics: {error}
+      </div>
     );
   }
 
   if (!data) return null;
 
-  const { profile, admissions, doctors, conditions, medications, billing_summary, test_results } = data;
+  const totalBilled = data.billing_summary.total_billed;
+  const billingByInsurance = data.billing_summary.by_insurance.map((b) => ({
+    name: b.provider,
+    value: b.total,
+  }));
 
-  const billingData = billing_summary.by_insurance.map((d) => ({ name: d.provider, value: d.total }));
-  const testData = test_results.map((d) => ({ name: d.result, value: d.count }));
+  const testResultData = data.test_results.map((t) => ({
+    name: t.result,
+    value: t.count,
+  }));
+
+  // Generate distinct colors for insurance pie slices
+  const insuranceColors = [
+    "#3b82f6",
+    "#8b5cf6",
+    "#10b981",
+    "#f59e0b",
+    "#ec4899",
+    "#6366f1",
+    "#14b8a6",
+    "#f97316",
+  ];
 
   return (
-    <DashboardShell>
+    <div className="space-y-6">
       {/* Profile card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-        <div className="flex items-center gap-5">
-          <div className="flex-shrink-0 flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 text-blue-600">
-            <User className="h-8 w-8" />
+      <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-6">
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="flex-shrink-0 w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
+            <span className="text-2xl font-bold text-blue-600">
+              {data.profile.patient_name.charAt(0).toUpperCase()}
+            </span>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{profile.patient_name}</h1>
-            <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-500">
-              <span>{profile.gender}</span>
-              <span>Blood Type: <span className="font-semibold text-gray-700">{profile.blood_type}</span></span>
-              <span>{profile.total_admissions} admission{profile.total_admissions !== 1 ? "s" : ""}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xl font-bold text-gray-900">{data.profile.patient_name}</p>
+            <div className="mt-1 flex flex-wrap gap-4 text-sm text-gray-500">
+              <span>Gender: <span className="font-medium text-gray-700">{data.profile.gender}</span></span>
+              <span>Blood Type: <span className="font-medium text-gray-700">{data.profile.blood_type}</span></span>
+              <span>Total Admissions: <span className="font-medium text-gray-700">{data.profile.total_admissions.toLocaleString()}</span></span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {/* KPI stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           title="Total Admissions"
-          value={profile.total_admissions.toLocaleString()}
+          value={data.profile.total_admissions.toLocaleString()}
           icon={<Activity className="h-5 w-5" />}
         />
         <StatCard
           title="Total Billed"
-          value={`$${billing_summary.total_billed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={formatCurrency(totalBilled)}
           icon={<DollarSign className="h-5 w-5" />}
         />
         <StatCard
-          title="Conditions"
-          value={conditions.length.toLocaleString()}
+          title="Distinct Conditions"
+          value={data.conditions.length.toLocaleString()}
           icon={<Heart className="h-5 w-5" />}
-          subtitle="Distinct conditions recorded"
         />
       </div>
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <ChartCard title="Billing by Insurance">
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie
-                data={billingData}
-                cx="50%"
-                cy="50%"
-                innerRadius={70}
-                outerRadius={100}
-                dataKey="value"
-                nameKey="name"
-              >
-                {billingData.map((entry, index) => (
-                  <Cell key={entry.name} fill={BILLING_PALETTE[index % BILLING_PALETTE.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v: unknown) => `$${(v as number).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
+      {/* Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Billing by Insurance */}
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">Billing by Insurance</h3>
+          {billingByInsurance.length === 0 ? (
+            <p className="text-sm text-gray-400">No billing data</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={billingByInsurance}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={85}
+                  dataKey="value"
+                >
+                  {billingByInsurance.map((_, index) => (
+                    <Cell
+                      key={`billing-cell-${index}`}
+                      fill={insuranceColors[index % insuranceColors.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: unknown) => formatCurrency(value as number)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
-        <ChartCard title="Test Results">
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie
-                data={testData}
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                dataKey="value"
-                nameKey="name"
-              >
-                {testData.map((entry) => (
-                  <Cell key={entry.name} fill={TEST_COLORS[entry.name] ?? "#94a3b8"} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: unknown) => (value as number).toLocaleString()} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        {/* Test Results */}
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">Test Results</h3>
+          {testResultData.length === 0 ? (
+            <p className="text-sm text-gray-400">No test result data</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={testResultData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={85}
+                  dataKey="value"
+                >
+                  {testResultData.map((entry, index) => (
+                    <Cell
+                      key={`test-cell-${index}`}
+                      fill={TEST_RESULT_COLORS[entry.name] ?? "#9ca3af"}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
-      {/* Info cards row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      {/* Info cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* My Doctors */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Stethoscope className="h-4 w-4 text-blue-500" />
-            My Doctors
-          </h3>
-          {doctors.length === 0 ? (
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">My Doctors</h3>
+          {data.doctors.length === 0 ? (
             <p className="text-sm text-gray-400">No doctors on record</p>
           ) : (
-            <ul className="space-y-2">
-              {doctors.map((d) => (
+            <ul className="space-y-1.5">
+              {data.doctors.map((d) => (
                 <li key={d.doctor_id} className="flex items-center gap-2 text-sm text-gray-700">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
                   {d.doctor_name}
@@ -209,19 +871,19 @@ export default function PatientDashboardPage() {
         </div>
 
         {/* My Conditions */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Heart className="h-4 w-4 text-red-500" />
-            My Conditions
-          </h3>
-          {conditions.length === 0 ? (
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">My Conditions</h3>
+          {data.conditions.length === 0 ? (
             <p className="text-sm text-gray-400">No conditions on record</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {conditions.map((c, i) => (
+              {data.conditions.map((c, i) => (
                 <span
                   key={c}
-                  className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${CONDITION_COLORS[i % CONDITION_COLORS.length]}`}
+                  className={cn(
+                    "inline-block rounded-full px-2.5 py-1 text-xs font-medium",
+                    BADGE_COLORS[i % BADGE_COLORS.length]
+                  )}
                 >
                   {c}
                 </span>
@@ -231,19 +893,19 @@ export default function PatientDashboardPage() {
         </div>
 
         {/* My Medications */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Activity className="h-4 w-4 text-green-500" />
-            My Medications
-          </h3>
-          {medications.length === 0 ? (
+        <div className="rounded-xl bg-white border border-gray-100 shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">My Medications</h3>
+          {data.medications.length === 0 ? (
             <p className="text-sm text-gray-400">No medications on record</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {medications.map((m, i) => (
+              {data.medications.map((m, i) => (
                 <span
                   key={m}
-                  className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${MEDICATION_COLORS[i % MEDICATION_COLORS.length]}`}
+                  className={cn(
+                    "inline-block rounded-full px-2.5 py-1 text-xs font-medium",
+                    BADGE_COLORS[i % BADGE_COLORS.length]
+                  )}
                 >
                   {m}
                 </span>
@@ -253,64 +915,148 @@ export default function PatientDashboardPage() {
         </div>
       </div>
 
-      {/* Admission history table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-gray-900">Admission History</h3>
+      {/* Admission History table */}
+      <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+            Admission History
+          </h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium">Date</th>
-                <th className="px-4 py-3 text-left font-medium">Doctor</th>
-                <th className="px-4 py-3 text-left font-medium">Hospital</th>
-                <th className="px-4 py-3 text-left font-medium">Condition</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Medication</th>
-                <th className="px-4 py-3 text-left font-medium">Test Result</th>
-                <th className="px-4 py-3 text-right font-medium">Billing</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {admissions.map((row, i) => (
-                <tr key={row.admission_id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.date_of_admission}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{row.doctor_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{row.hospital_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{row.medical_condition}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                      row.admission_type === "Emergency"
-                        ? "bg-red-100 text-red-700"
-                        : row.admission_type === "Urgent"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-blue-100 text-blue-700"
-                    }`}>
-                      {row.admission_type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.medication}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                      row.test_result === "Normal"
-                        ? "bg-green-100 text-green-700"
-                        : row.test_result === "Abnormal"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}>
-                      {row.test_result}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900 whitespace-nowrap">
-                    ${row.billing_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
+        {data.admissions.length === 0 ? (
+          <p className="p-5 text-sm text-gray-400">No admission history</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  {["Date", "Doctor", "Hospital", "Condition", "Type", "Medication", "Test Result", "Billing"].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    )
+                  )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {data.admissions.map((a, i) => (
+                  <tr key={a.admission_id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{a.date_of_admission}</td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{a.doctor_name}</td>
+                    <td className="px-4 py-3 text-gray-700">{a.hospital_name}</td>
+                    <td className="px-4 py-3 text-gray-700">{a.medical_condition}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <AdmissionTypeBadge type={a.admission_type} />
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{a.medication}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <TestResultBadge result={a.test_result} />
+                    </td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap font-medium">
+                      {formatCurrency(a.billing_amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ---- Main page ----
+type Tab = "emergency" | "analytics";
+
+export default function PatientDashboardPage() {
+  const { ready } = useAuthGuard("patient");
+  const [profile, setProfile] = useState<PatientProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("analytics");
+
+  const fetchProfile = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const data = await getPatientProfile();
+      setProfile(data);
+    } catch (err: unknown) {
+      setFetchError(err instanceof Error ? err.message : "Failed to load profile");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (ready) fetchProfile();
+  }, [ready, fetchProfile]);
+
+  if (!ready || loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <DashboardShell>
+        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">
+          Failed to load profile: {fetchError}
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  if (!profile) return null;
+
+  return (
+    <DashboardShell>
+      {/* Page header */}
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">Patient Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Welcome, {profile.patient_name}. Update your emergency medical profile to keep doctors
+          informed in emergencies.
+        </p>
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 ${
+            activeTab === "analytics"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+          onClick={() => setActiveTab("analytics")}
+        >
+          Analytics
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 ${
+            activeTab === "emergency"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+          onClick={() => setActiveTab("emergency")}
+        >
+          Emergency Info
+        </button>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === "analytics" ? (
+        <AnalyticsTab />
+      ) : (
+        <EmergencyInfoTab profile={profile} onRefresh={fetchProfile} />
+      )}
     </DashboardShell>
   );
 }
