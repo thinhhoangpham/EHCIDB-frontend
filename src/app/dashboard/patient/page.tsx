@@ -289,6 +289,95 @@ function DeleteButton({ onDelete }: { onDelete: () => Promise<void> }) {
   );
 }
 
+// ---- Insurance edit form ----
+interface InsuranceFormProps {
+  initial?: { provider_name: string; plan_type: string; member_id: string; coverage_status: string };
+  onSubmit: (values: { provider_name: string; plan_type: string; member_id: string; coverage_status: string }) => Promise<void>;
+  onCancel: () => void;
+}
+
+function InsuranceForm({ initial, onSubmit, onCancel }: InsuranceFormProps) {
+  const [values, setValues] = useState({
+    provider_name: initial?.provider_name ?? "",
+    plan_type: initial?.plan_type ?? "",
+    member_id: initial?.member_id ?? "",
+    coverage_status: initial?.coverage_status ?? "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    // Basic frontend validation
+    if (!values.provider_name.trim()) {
+      setError("Provider name is required");
+      return;
+    }
+    if (!values.plan_type.trim()) {
+      setError("Plan type is required");
+      return;
+    }
+    if (!values.member_id.trim()) {
+      setError("Member ID is required");
+      return;
+    }
+    if (!values.coverage_status.trim()) {
+      setError("Coverage status is required");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // TODO: Integrate with backend API for insurance updates
+      // For now, this is frontend-only validation and UI
+      await onSubmit(values);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save insurance information");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-3 space-y-3 border-t border-gray-100 pt-3">
+      {[
+        { name: "provider_name" as const, label: "Provider Name", placeholder: "e.g. BlueCross BlueShield" },
+        { name: "plan_type" as const, label: "Plan Type", placeholder: "e.g. PPO, HMO" },
+        { name: "member_id" as const, label: "Member ID", placeholder: "e.g. ABC123456789" },
+        { name: "coverage_status" as const, label: "Coverage Status", placeholder: "e.g. Active, Inactive" },
+      ].map((f) => (
+        <div key={f.name}>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+          <input
+            type="text"
+            value={values[f.name]}
+            placeholder={f.placeholder}
+            onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+            required
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+      ))}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button type="submit" loading={submitting} className="text-xs px-3 py-1.5 h-auto">
+          Save Insurance
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-xs px-3 py-1.5 h-auto"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 // ---- Admission type badge ----
 function AdmissionTypeBadge({ type }: { type: string }) {
   const styles: Record<string, string> = {
@@ -340,6 +429,7 @@ function EmergencyInfoTab({ profile, onRefresh }: EmergencyInfoTabProps) {
   const [showAddDevice, setShowAddDevice] = useState(false);
   const [showAddContact, setShowAddContact] = useState(false);
   const [editingContactId, setEditingContactId] = useState<number | null>(null);
+  const [editingInsurance, setEditingInsurance] = useState(false);
 
   return (
     <>
@@ -641,23 +731,56 @@ function EmergencyInfoTab({ profile, onRefresh }: EmergencyInfoTabProps) {
         </SectionCard>
       </div>
 
-      {/* Insurance — read-only */}
+      {/* Insurance */}
       <SectionCard title="Insurance" icon={<FileText className="h-4 w-4" />}>
         {profile.insurance === null ? (
-          <p className="text-sm text-gray-400">No insurance information on file</p>
+          <div>
+            <p className="text-sm text-gray-400">No insurance information on file</p>
+            <Button
+              onClick={() => setEditingInsurance(true)}
+              variant="ghost"
+              className="mt-2 text-xs px-2 py-1 h-auto"
+            >
+              Add Insurance
+            </Button>
+          </div>
+        ) : editingInsurance ? (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+            <InsuranceForm
+              initial={profile.insurance}
+              onSubmit={async (values) => {
+                // TODO: Integrate with backend API for insurance updates
+                // For now, this simulates a successful update with frontend validation only
+                console.log("Insurance update values:", values);
+                setEditingInsurance(false);
+                // In a real implementation, this would refresh the profile data
+                // await onRefresh();
+              }}
+              onCancel={() => setEditingInsurance(false)}
+            />
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-            {[
-              { label: "Provider", value: profile.insurance.provider_name },
-              { label: "Plan", value: profile.insurance.plan_type },
-              { label: "Member ID", value: profile.insurance.member_id },
-              { label: "Status", value: profile.insurance.coverage_status },
-            ].map((row) => (
-              <div key={row.label} className="flex items-baseline gap-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">{row.label}:</span>
-                <span className="font-medium text-gray-900">{row.value}</span>
-              </div>
-            ))}
+          <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm mb-3">
+              {[
+                { label: "Provider", value: profile.insurance.provider_name },
+                { label: "Plan", value: profile.insurance.plan_type },
+                { label: "Member ID", value: profile.insurance.member_id },
+                { label: "Status", value: profile.insurance.coverage_status },
+              ].map((row) => (
+                <div key={row.label} className="flex items-baseline gap-2">
+                  <span className="text-gray-500 w-24 flex-shrink-0">{row.label}:</span>
+                  <span className="font-medium text-gray-900">{row.value}</span>
+                </div>
+              ))}
+            </div>
+            <Button
+              onClick={() => setEditingInsurance(true)}
+              variant="ghost"
+              className="text-xs px-2 py-1 h-auto"
+            >
+              Edit Insurance
+            </Button>
           </div>
         )}
       </SectionCard>
