@@ -12,3 +12,15 @@ export const deactivateUser = (id: string) =>
 
 export const getAccessLogs = () =>
   apiClient.get<AccessLog[]>("/admin/access-logs/").then((r) => r.data);
+
+
+export async function createDoctor(data: {
+  username: string;
+  email: string;
+  password: string;
+  full_name: string;
+  doctor_name: string;
+}) {
+  const res = await apiClient.post("/admin/create-doctor", data);
+  return res.data;
+}

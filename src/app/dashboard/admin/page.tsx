@@ -1,3 +1,4 @@
+// frontend/src/app/dashboard/admin/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -36,6 +37,8 @@ import type { UserEntry, AccessLogEntry, InsuranceProvider } from "@/lib/api/eme
 import { StatCard } from "@/components/dashboard/StatCard";
 import { getAdminDashboard } from "@/lib/api/dashboard";
 import type { AdminDashboard } from "@/lib/api/dashboard";
+
+import CreateDoctorModal from "@/components/admin/CreateDoctorModal";
 
 type TabId = "analytics" | "users" | "logs" | "insurance";
 
@@ -150,11 +153,11 @@ function UserManagementTab() {
 
   const filtered = filter.trim()
     ? users.filter(
-        (u) =>
-          u.full_name.toLowerCase().includes(filter.toLowerCase()) ||
-          u.email.toLowerCase().includes(filter.toLowerCase()) ||
-          u.username.toLowerCase().includes(filter.toLowerCase())
-      )
+      (u) =>
+        u.full_name.toLowerCase().includes(filter.toLowerCase()) ||
+        u.email.toLowerCase().includes(filter.toLowerCase()) ||
+        u.username.toLowerCase().includes(filter.toLowerCase())
+    )
     : users;
 
   return (
@@ -214,8 +217,8 @@ function UserManagementTab() {
                             u.role === "admin"
                               ? "bg-purple-100 text-purple-800"
                               : u.role === "doctor"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-green-100 text-green-800"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-green-100 text-green-800"
                           )}
                         >
                           {u.role}
@@ -787,8 +790,8 @@ function AnalyticsTab() {
                           admission.admission_type === "Emergency"
                             ? "bg-red-100 text-red-800"
                             : admission.admission_type === "Urgent"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-blue-100 text-blue-800"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-blue-100 text-blue-800"
                         )}
                       >
                         {admission.admission_type}
@@ -818,6 +821,8 @@ function AnalyticsTab() {
 export default function AdminDashboardPage() {
   const { ready } = useAuthGuard("admin");
   const [activeTab, setActiveTab] = useState<TabId>("analytics");
+  const [doctorModalOpen, setDoctorModalOpen] = useState(false);
+
 
   if (!ready) {
     return (
@@ -832,6 +837,14 @@ export default function AdminDashboardPage() {
       {/* Page header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">System Administrator Dashboard</h1>
+        <div className="mt-4">
+          <button
+            onClick={() => setDoctorModalOpen(true)}
+            className="bg-black text-white px-4 py-2 rounded-lg hover:opacity-80"
+          >
+            + Add Doctor
+          </button>
+        </div>
         <p className="mt-1 text-sm text-gray-500">
           Manage user roles, access logs, and database entries securely.
         </p>
@@ -858,6 +871,13 @@ export default function AdminDashboardPage() {
       {activeTab === "users" && <UserManagementTab />}
       {activeTab === "logs" && <AccessLogsTab />}
       {activeTab === "insurance" && <InsuranceProvidersTab />}
+      <CreateDoctorModal
+        open={doctorModalOpen}
+        onClose={() => setDoctorModalOpen(false)}
+        onSuccess={() => {
+          alert("Doctor created successfully");
+        }}
+      />
     </DashboardShell>
   );
 }
