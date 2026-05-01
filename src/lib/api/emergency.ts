@@ -44,6 +44,10 @@ export interface PatientProfile {
   patient_name: string;
   gender: string;
   blood_type: string;
+  date_of_birth: string | null;
+  phone_number: string | null;
+  email: string | null;
+  address: string | null;
   allergies: Allergy[];
   conditions: Condition[];
   medications: Medication[];

@@ -446,6 +446,10 @@ function EmergencyInfoTab({ profile, onRefresh }: EmergencyInfoTabProps) {
               { label: "Emergency ID", value: profile.emergency_identifier },
               { label: "Blood Type", value: profile.blood_type },
               { label: "Gender", value: profile.gender },
+              { label: "Date of Birth", value: profile.date_of_birth ?? "—" },
+              { label: "Phone", value: profile.phone_number ?? "—" },
+              { label: "Email", value: profile.email ?? "—" },
+              { label: "Address", value: profile.address ?? "—" },
             ].map((row, i) => (
               <tr key={row.label} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                 <td className="px-5 py-3 font-medium text-gray-600 w-40">{row.label}</td>
