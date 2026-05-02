@@ -20,50 +20,74 @@ export default function RegisterPage() {
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
 
-    setNameError("");
-    setEmailError("");
-    setPasswordError("");
-    setConfirmPasswordError("");
-    setSuccessMessage("");
+  setNameError("");
+  setEmailError("");
+  setPasswordError("");
+  setConfirmPasswordError("");
+  setSuccessMessage("");
 
-    let isValid = true;
+  let isValid = true;
 
-    if (!name.trim()) {
-      setNameError("Name is required.");
-      isValid = false;
-    }
+  if (!name.trim()) {
+    setNameError("Name is required.");
+    isValid = false;
+  }
 
-    if (!email.trim()) {
-      setEmailError("Email is required.");
-      isValid = false;
-    } else if (!isValidEmail(email)) {
-      setEmailError("Please enter a valid email address.");
-      isValid = false;
-    }
+  if (!email.trim()) {
+    setEmailError("Email is required.");
+    isValid = false;
+  } else if (!isValidEmail(email)) {
+    setEmailError("Please enter a valid email address.");
+    isValid = false;
+  }
 
-    if (!password.trim()) {
-      setPasswordError("Password is required.");
-      isValid = false;
-    } else if (password.length < 6) {
-      setPasswordError("Password must be at least 6 characters.");
-      isValid = false;
-    }
+  if (!password.trim()) {
+    setPasswordError("Password is required.");
+    isValid = false;
+  } else if (password.length < 6) {
+    setPasswordError("Password must be at least 6 characters.");
+    isValid = false;
+  }
 
-    if (!confirmPassword.trim()) {
-      setConfirmPasswordError("Please confirm your password.");
-      isValid = false;
-    } else if (password !== confirmPassword) {
-      setConfirmPasswordError("Passwords do not match.");
-      isValid = false;
-    }
+  if (!confirmPassword.trim()) {
+    setConfirmPasswordError("Please confirm your password.");
+    isValid = false;
+  } else if (password !== confirmPassword) {
+    setConfirmPasswordError("Passwords do not match.");
+    isValid = false;
+  }
 
-    if (isValid) {
-      setSuccessMessage("Registration form submitted successfully.");
-    }
-  };
+  if (!isValid) {
+    return;
+  }
+
+  const res = await fetch("http://127.0.0.1:8000/api/auth/register", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      full_name: name,
+      email: email,
+      password: password,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (res.ok) {
+    setSuccessMessage("Registration successful. You can now log in.");
+    setName("");
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+  } else {
+    setEmailError(data.detail || "Registration failed.");
+  }
+};
 
   return (
     <AuthPageLayout
