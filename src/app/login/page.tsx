@@ -53,11 +53,21 @@ export default function LoginPage() {
       const data = await login(email, password);
       setAuth(data.user, data.access_token, data.refresh_token);
       router.push(ROLE_DASHBOARD[data.user.role]);
-    } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Login failed. Please try again.";
-      setApiError(message);
+    } catch (err: any) {
+      let errorMessage = "Login failed. Please try again.";
+      if (err?.response?.data?.detail) {
+        const detail = err.response.data.detail;
+        if (typeof detail === "string") {
+          errorMessage = detail;
+        } else if (Array.isArray(detail)) {
+          errorMessage = detail.map((d: any) => d.msg || JSON.stringify(d)).join(", ");
+        } else {
+          errorMessage = JSON.stringify(detail);
+        }
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      setApiError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

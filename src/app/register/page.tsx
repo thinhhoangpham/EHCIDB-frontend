@@ -3,7 +3,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { register } from "@/lib/api/auth";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { AuthPageLayout } from "@/components/layout/AuthPageLayout";
+import { getBloodTypes } from "@/lib/api/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -29,51 +30,27 @@ export default function RegisterPage() {
   // const [successMessage, setSuccessMessage] = useState("");
   const [apiError, setApiError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [gender, setGender] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [bloodType, setBloodType] = useState("");
+  const [bloodTypes, setBloodTypes] = useState([]);
 
-  // const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-  //   e.preventDefault();
 
-  //   setNameError("");
-  //   setEmailError("");
-  //   setPasswordError("");
-  //   setConfirmPasswordError("");
-  //   setSuccessMessage("");
 
-  //   let isValid = true;
+  useEffect(() => {
+    const loadBloodTypes = async () => {
+      try {
+        const data = await getBloodTypes();
+        setBloodTypes(data);
+      } catch (err) {
+        console.error("Failed to load blood types", err);
+      }
+    };
 
-  //   if (!name.trim()) {
-  //     setNameError("Name is required.");
-  //     isValid = false;
-  //   }
+    loadBloodTypes();
+  }, []);
 
-  //   if (!email.trim()) {
-  //     setEmailError("Email is required.");
-  //     isValid = false;
-  //   } else if (!isValidEmail(email)) {
-  //     setEmailError("Please enter a valid email address.");
-  //     isValid = false;
-  //   }
 
-  //   if (!password.trim()) {
-  //     setPasswordError("Password is required.");
-  //     isValid = false;
-  //   } else if (password.length < 6) {
-  //     setPasswordError("Password must be at least 6 characters.");
-  //     isValid = false;
-  //   }
-
-  //   if (!confirmPassword.trim()) {
-  //     setConfirmPasswordError("Please confirm your password.");
-  //     isValid = false;
-  //   } else if (password !== confirmPassword) {
-  //     setConfirmPasswordError("Passwords do not match.");
-  //     isValid = false;
-  //   }
-
-  //   if (isValid) {
-  //     setSuccessMessage("Registration form submitted successfully.");
-  //   }
-  // };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -121,14 +98,32 @@ export default function RegisterPage() {
 
     setIsSubmitting(true);
     try {
-      const data = await register(name, email, password);
+      const data = await register(
+        name,
+        email,
+        password,
+        gender,
+        bloodType,
+        dateOfBirth
+      );
+
       setAuth(data.user, data.access_token, data.refresh_token);
       router.push(ROLE_DASHBOARD[data.user.role]);
-    } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Registration failed. Please try again.";
-      setApiError(message);
+    } catch (err: any) {
+      let errorMessage = "Registration failed. Please try again.";
+      if (err?.response?.data?.detail) {
+        const detail = err.response.data.detail;
+        if (typeof detail === "string") {
+          errorMessage = detail;
+        } else if (Array.isArray(detail)) {
+          errorMessage = detail.map((d: any) => d.msg || JSON.stringify(d)).join(", ");
+        } else {
+          errorMessage = JSON.stringify(detail);
+        }
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      setApiError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -165,6 +160,47 @@ export default function RegisterPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           error={emailError}
+        />
+
+
+        <Input
+          id="gender"
+          type="select"
+          label="Gender"
+          placeholder="Select Gender"
+          value={gender}
+          onChange={(e) => setGender(e.target.value)}
+          options={[
+            { label: "Male", value: "Male" },
+            { label: "Female", value: "Female" },
+            { label: "Other", value: "Other" },
+          ]}
+        />
+
+
+
+
+
+
+        <Input
+          id="dateOfBirth"
+          type="date"
+          label="Date of Birth"
+          placeholder="Select Date of Birth"
+          value={dateOfBirth}
+          onChange={(e) => setDateOfBirth(e.target.value)}
+        />
+
+
+
+        <Input
+          id="bloodType"
+          type="select"
+          label="Blood Type"
+          placeholder="Select Blood Type"
+          value={bloodType}
+          onChange={(e) => setBloodType(e.target.value)}
+          options={bloodTypes.map((bt: any) => ({ label: bt.blood_type_code, value: bt.blood_type_code }))}
         />
 
         <Input
