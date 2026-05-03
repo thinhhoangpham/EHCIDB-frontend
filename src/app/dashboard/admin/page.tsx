@@ -555,6 +555,7 @@ function AnalyticsTab() {
     setError(null);
     getAdminDashboard()
       .then((result) => {
+              console.log("📊 ADMIN DASHBOARD JSON:", result);
         if (!cancelled) setData(result);
       })
       .catch((err: unknown) => {

@@ -81,10 +81,68 @@ function SeverityBadge({ severity }: { severity: string }) {
     </span>
   );
 }
-
+import { assignPatient } from "@/lib/api/admission";
 // ---- Emergency card (read-only) ----
 function EmergencyCard({ card }: { card: PatientProfile }) {
+  const { user } = useAuthGuard("doctor");
   const hasCritical = card.conditions.some((c) => c.critical_flag);
+
+  const [admitting, setAdmitting] = useState(false);
+  const [admitted, setAdmitted] = useState(false);
+
+  // const handleAdmit = async () => {
+  //   if (!user?.id) return;
+
+  //   try {
+  //     setAdmitting(true);
+
+  //     await assignPatient({
+  //       doctor_id: user.id,
+  //       patient_id: card.patient_id,
+  //     });
+
+  //     setAdmitted(true);
+  //   } catch (err) {
+  //     alert("Failed to admit patient");
+  //   } finally {
+  //     setAdmitting(false);
+  //   }
+  // };
+
+  const handleAdmit = async () => {
+    if (!user?.id) return;
+
+    const patientId = card.patient_id;
+
+    if (!patientId) {
+      console.error("Missing patient_id:", card);
+      return;
+    }
+
+    try {
+      setAdmitting(true);
+      console.log("ASSIGN PAYLOAD:", {
+        doctor_id: Number(user.id),
+        patient_id: Number(patientId),
+      });
+
+      await assignPatient(card.patient_id);
+
+      // await assignPatient({
+      //   doctor_id: user.id,
+      //   patient_id: user.patient_id,
+      // });
+
+      setAdmitted(true);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to admit patient");
+    } finally {
+      setAdmitting(false);
+    }
+  };
+
+
 
   return (
     <div className="rounded-xl bg-white border border-gray-200 shadow-sm overflow-hidden">
@@ -248,6 +306,23 @@ function EmergencyCard({ card }: { card: PatientProfile }) {
                 <p className="text-gray-600">{card.insurance.coverage_status}</p>
               </div>
             )}
+          </div>
+          {/* Admit Button */}
+          <div className="px-5 py-4 border-t border-gray-100 flex justify-end">
+            <Button
+              onClick={handleAdmit}
+              disabled={admitted || admitting}
+              className={cn(
+                "text-sm",
+                admitted && "bg-green-600 hover:bg-green-600 cursor-not-allowed"
+              )}
+            >
+              {admitted
+                ? "Admitted"
+                : admitting
+                  ? "Admitting..."
+                  : "Admit Patient"}
+            </Button>
           </div>
         </div>
       </div>
@@ -832,7 +907,7 @@ type Tab = "search" | "analytics";
 
 // ---- Main page ----
 export default function DoctorDashboardPage() {
-  const { ready } = useAuthGuard("doctor");
+  const { ready, user } = useAuthGuard("doctor");
   const { searches, addSearch } = useRecentSearches();
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
 
@@ -857,21 +932,19 @@ export default function DoctorDashboardPage() {
       {/* Tab switcher */}
       <div className="flex border-b border-gray-200 mb-6">
         <button
-          className={`px-4 py-2 text-sm font-medium border-b-2 ${
-            activeTab === "analytics"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
+          className={`px-4 py-2 text-sm font-medium border-b-2 ${activeTab === "analytics"
+            ? "border-blue-600 text-blue-600"
+            : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
           onClick={() => setActiveTab("analytics")}
         >
           Analytics
         </button>
         <button
-          className={`px-4 py-2 text-sm font-medium border-b-2 ${
-            activeTab === "search"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
+          className={`px-4 py-2 text-sm font-medium border-b-2 ${activeTab === "search"
+            ? "border-blue-600 text-blue-600"
+            : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
           onClick={() => setActiveTab("search")}
         >
           Emergency Search

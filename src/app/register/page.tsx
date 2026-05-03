@@ -1,5 +1,3 @@
-//frontend\src\app\register\page.tsx
-
 "use client";
 
 import Link from "next/link";
@@ -14,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { AuthPageLayout } from "@/components/layout/AuthPageLayout";
 import { getBloodTypes } from "@/lib/api/auth";
+
 
 export default function RegisterPage() {
   const router = useRouter();
