@@ -468,7 +468,7 @@ function EmergencySearchTab({ searches, addSearch }: EmergencySearchTabProps) {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Enter Emergency ID or patient name..."
+              placeholder="Enter Emergency ID or Phone Number or patient name..."
               className="w-full rounded-lg border border-gray-300 bg-white pl-9 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500"
             />
           </div>
