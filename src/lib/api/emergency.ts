@@ -94,6 +94,19 @@ export const getPatientProfile = () =>
 export const updatePatientInfo = (data: { phone_number: string | null; address: string | null }) =>
   apiClient.put<PatientProfile>("/emergency/patient/profile/info", data).then((r) => r.data);
 
+export const updatePatientInsurance = (data: {
+  provider_name: string;
+  plan_type: "PPO" | "HMO" | "Medicaid" | "Medicare";
+  member_id: string;
+  group_number?: string | null;
+  coverage_status: "Active" | "Inactive";
+}) => apiClient.put<InsuranceInfo>("/emergency/patient/insurance", data).then((r) => r.data);
+
+export const getPatientInsuranceProviders = () =>
+  apiClient
+    .get<InsuranceProvider[]>("/emergency/patient/insurance-providers")
+    .then((r) => r.data);
+
 export const addAllergy = (data: { allergy_name: string; severity: string }) =>
   apiClient.post("/emergency/patient/allergies", data);
 
@@ -132,13 +145,7 @@ export const updateEmergencyContact = (
 export const deleteEmergencyContact = (id: number) =>
   apiClient.delete(`/emergency/patient/emergency-contacts/${id}`);
 
-export const updatePatientInsurance = (data: {
-  provider_name: string;
-  plan_type: "PPO" | "HMO" | "Medicaid" | "Medicare";
-  member_id: string;
-  group_number?: string | null;
-  coverage_status: "Active" | "Inactive";
-}) => apiClient.put<InsuranceInfo>("/emergency/patient/insurance", data).then((r) => r.data);
+
 
 // ---- Doctor APIs ----
 export const searchPatients = (q: string) =>
@@ -152,10 +159,10 @@ export const getPatientEmergencyCard = (emergencyId: string) =>
     .then((r) => r.data);
 
 // ---- Admin APIs ----
-export const getUsers = (page: number, limit: number) =>
+export const getUsers = (page: number, limit: number, q?: string) =>
   apiClient
     .get<{ users: UserEntry[]; total: number }>("/emergency/admin/users", {
-      params: { page, limit },
+      params: { page, limit, ...(q ? { q } : {}) },
     })
     .then((r) => r.data);
 

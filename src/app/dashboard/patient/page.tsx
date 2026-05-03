@@ -44,6 +44,7 @@ import {
   deleteEmergencyContact,
   updatePatientInfo,
   updatePatientInsurance,
+  getPatientInsuranceProviders,
 } from "@/lib/api/emergency";
 import type { PatientProfile, EmergencyContactInfo } from "@/lib/api/emergency";
 import { getPatientDashboard } from "@/lib/api/dashboard";
@@ -299,6 +300,16 @@ interface InsuranceFormProps {
 }
 
 function InsuranceForm({ initial, onSubmit, onCancel }: InsuranceFormProps) {
+  const [providers, setProviders] = useState<{ provider_id: number; provider_name: string }[]>([]);
+  const [loadingProviders, setLoadingProviders] = useState(true);
+
+  useEffect(() => {
+    getPatientInsuranceProviders()
+      .then(setProviders)
+      .catch(console.error)
+      .finally(() => setLoadingProviders(false));
+  }, []);
+
   const [values, setValues] = useState({
     provider_name: initial?.provider_name ?? "",
     plan_type: initial?.plan_type ?? "",
@@ -344,24 +355,64 @@ function InsuranceForm({ initial, onSubmit, onCancel }: InsuranceFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-3 space-y-3 border-t border-gray-100 pt-3">
-      {[
-        { name: "provider_name" as const, label: "Provider Name", placeholder: "e.g. BlueCross BlueShield" },
-        { name: "plan_type" as const, label: "Plan Type", placeholder: "e.g. PPO, HMO" },
-        { name: "member_id" as const, label: "Member ID", placeholder: "e.g. ABC123456789" },
-        { name: "coverage_status" as const, label: "Coverage Status", placeholder: "e.g. Active, Inactive" },
-      ].map((f) => (
-        <div key={f.name}>
-          <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Provider Name</label>
+          <select
+            value={values.provider_name}
+            onChange={(e) => setValues((v) => ({ ...v, provider_name: e.target.value }))}
+            required
+            disabled={loadingProviders}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+          >
+            <option value="">{loadingProviders ? "Loading providers..." : "Select provider..."}</option>
+            {providers.map((p) => (
+              <option key={p.provider_id} value={p.provider_name}>
+                {p.provider_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Plan Type</label>
+          <select
+            value={values.plan_type}
+            onChange={(e) => setValues((v) => ({ ...v, plan_type: e.target.value }))}
+            required
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
+          >
+            <option value="">Select plan type...</option>
+            <option value="PPO">PPO</option>
+            <option value="HMO">HMO</option>
+            <option value="Medicaid">Medicaid</option>
+            <option value="Medicare">Medicare</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Member ID</label>
           <input
             type="text"
-            value={values[f.name]}
-            placeholder={f.placeholder}
-            onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+            value={values.member_id}
+            placeholder="e.g. ABC123456789"
+            onChange={(e) => setValues((v) => ({ ...v, member_id: e.target.value }))}
             required
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500"
           />
         </div>
-      ))}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Coverage Status</label>
+          <select
+            value={values.coverage_status}
+            onChange={(e) => setValues((v) => ({ ...v, coverage_status: e.target.value }))}
+            required
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
+          >
+            <option value="">Select status...</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex items-center gap-2">
         <Button type="submit" loading={submitting} className="text-xs px-3 py-1.5 h-auto">

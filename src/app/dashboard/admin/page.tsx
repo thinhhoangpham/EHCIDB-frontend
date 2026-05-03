@@ -120,11 +120,11 @@ function UserManagementTab() {
 
   const totalPages = Math.ceil(total / PAGE_LIMIT);
 
-  const fetch = useCallback(async (p: number) => {
+  const fetch = useCallback(async (p: number, q: string) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await getUsers(p, PAGE_LIMIT);
+      const result = await getUsers(p, PAGE_LIMIT, q);
       setUsers(result.users);
       setTotal(result.total);
     } catch (err: unknown) {
@@ -135,30 +135,26 @@ function UserManagementTab() {
   }, []);
 
   useEffect(() => {
-    fetch(page);
-  }, [fetch, page]);
+    const timeoutId = setTimeout(() => {
+      fetch(page, filter);
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [fetch, page, filter]);
 
   const handleToggleActive = async (user: UserEntry) => {
     setTogglingId(user.user_id);
     try {
       await updateUser(user.user_id, { is_active: !user.is_active });
-      await fetch(page);
+      await fetch(page, filter);
     } catch {
       // silently refresh — list will reflect actual state
-      await fetch(page);
+      await fetch(page, filter);
     } finally {
       setTogglingId(null);
     }
   };
 
-  const filtered = filter.trim()
-    ? users.filter(
-      (u) =>
-        u.full_name.toLowerCase().includes(filter.toLowerCase()) ||
-        u.email.toLowerCase().includes(filter.toLowerCase()) ||
-        u.username.toLowerCase().includes(filter.toLowerCase())
-    )
-    : users;
+  const filtered = users;
 
   return (
     <div className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
