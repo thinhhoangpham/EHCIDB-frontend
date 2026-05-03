@@ -42,6 +42,7 @@ import {
   addEmergencyContact,
   updateEmergencyContact,
   deleteEmergencyContact,
+  updatePatientInfo,
 } from "@/lib/api/emergency";
 import type { PatientProfile, EmergencyContactInfo } from "@/lib/api/emergency";
 import { getPatientDashboard } from "@/lib/api/dashboard";
@@ -416,6 +417,74 @@ function TestResultBadge({ result }: { result: string }) {
   );
 }
 
+// ---- Patient Info edit form ----
+interface PatientInfoFormProps {
+  initial: { phone_number: string | null; address: string | null };
+  onSubmit: (values: { phone_number: string | null; address: string | null }) => Promise<void>;
+  onCancel: () => void;
+}
+
+function PatientInfoForm({ initial, onSubmit, onCancel }: PatientInfoFormProps) {
+  const [values, setValues] = useState({
+    phone_number: initial.phone_number ?? "",
+    address: initial.address ?? "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        phone_number: values.phone_number.trim() || null,
+        address: values.address.trim() || null,
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save info");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="p-5 border-b border-gray-100 bg-gray-50/50">
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Phone Number</label>
+          <input
+            type="text"
+            value={values.phone_number}
+            placeholder="e.g. 555-1234"
+            onChange={(e) => setValues((v) => ({ ...v, phone_number: e.target.value }))}
+            className="w-full max-w-sm rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+          <input
+            type="text"
+            value={values.address}
+            placeholder="e.g. 123 Main St"
+            onChange={(e) => setValues((v) => ({ ...v, address: e.target.value }))}
+            className="w-full max-w-sm rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div className="flex items-center gap-2 pt-2">
+          <Button type="submit" loading={submitting} className="text-xs px-3 py-1.5 h-auto">
+            Save
+          </Button>
+          <Button type="button" variant="ghost" className="text-xs px-3 py-1.5 h-auto" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
 // ---- Emergency Info Tab ----
 interface EmergencyInfoTabProps {
   profile: PatientProfile;
@@ -430,17 +499,37 @@ function EmergencyInfoTab({ profile, onRefresh }: EmergencyInfoTabProps) {
   const [showAddContact, setShowAddContact] = useState(false);
   const [editingContactId, setEditingContactId] = useState<number | null>(null);
   const [editingInsurance, setEditingInsurance] = useState(false);
+  const [editingPatientInfo, setEditingPatientInfo] = useState(false);
 
   return (
     <>
       {/* Emergency info table */}
       <div className="mb-6 rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
           <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
             Emergency Information
           </h3>
+          {!editingPatientInfo && (
+            <button
+              onClick={() => setEditingPatientInfo(true)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Edit Info
+            </button>
+          )}
         </div>
-        <table className="w-full text-sm">
+        {editingPatientInfo ? (
+          <PatientInfoForm
+            initial={{ phone_number: profile.phone_number, address: profile.address }}
+            onSubmit={async (values) => {
+              await updatePatientInfo(values);
+              setEditingPatientInfo(false);
+              await onRefresh();
+            }}
+            onCancel={() => setEditingPatientInfo(false)}
+          />
+        ) : (
+          <table className="w-full text-sm">
           <tbody>
             {[
               { label: "Emergency ID", value: profile.emergency_identifier },
@@ -458,6 +547,7 @@ function EmergencyInfoTab({ profile, onRefresh }: EmergencyInfoTabProps) {
             ))}
           </tbody>
         </table>
+        )}
       </div>
 
       {/* Two-column grid for sections */}

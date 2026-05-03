@@ -90,6 +90,9 @@ export interface InsuranceProvider {
 export const getPatientProfile = () =>
   apiClient.get<PatientProfile>("/emergency/patient/profile").then((r) => r.data);
 
+export const updatePatientInfo = (data: { phone_number: string | null; address: string | null }) =>
+  apiClient.put<PatientProfile>("/emergency/patient/profile/info", data).then((r) => r.data);
+
 export const addAllergy = (data: { allergy_name: string; severity: string }) =>
   apiClient.post("/emergency/patient/allergies", data);
 
