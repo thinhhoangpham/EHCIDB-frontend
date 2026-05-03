@@ -43,6 +43,7 @@ import {
   updateEmergencyContact,
   deleteEmergencyContact,
   updatePatientInfo,
+  updatePatientInsurance,
 } from "@/lib/api/emergency";
 import type { PatientProfile, EmergencyContactInfo } from "@/lib/api/emergency";
 import { getPatientDashboard } from "@/lib/api/dashboard";
@@ -827,7 +828,24 @@ function EmergencyInfoTab({ profile, onRefresh }: EmergencyInfoTabProps) {
 
       {/* Insurance */}
       <SectionCard title="Insurance" icon={<FileText className="h-4 w-4" />}>
-        {profile.insurance === null ? (
+        {editingInsurance ? (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+            <InsuranceForm
+              initial={profile.insurance ?? undefined}
+              onSubmit={async (values) => {
+                await updatePatientInsurance({
+                  provider_name: values.provider_name.trim(),
+                  plan_type: values.plan_type as "PPO" | "HMO" | "Medicaid" | "Medicare",
+                  member_id: values.member_id.trim(),
+                  coverage_status: values.coverage_status as "Active" | "Inactive",
+                });
+                setEditingInsurance(false);
+                await onRefresh();
+              }}
+              onCancel={() => setEditingInsurance(false)}
+            />
+          </div>
+        ) : profile.insurance === null ? (
           <div>
             <p className="text-sm text-gray-400">No insurance information on file</p>
             <Button
@@ -837,21 +855,6 @@ function EmergencyInfoTab({ profile, onRefresh }: EmergencyInfoTabProps) {
             >
               Add Insurance
             </Button>
-          </div>
-        ) : editingInsurance ? (
-          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-            <InsuranceForm
-              initial={profile.insurance}
-              onSubmit={async (values) => {
-                // TODO: Integrate with backend API for insurance updates
-                // For now, this simulates a successful update with frontend validation only
-                console.log("Insurance update values:", values);
-                setEditingInsurance(false);
-                // In a real implementation, this would refresh the profile data
-                // await onRefresh();
-              }}
-              onCancel={() => setEditingInsurance(false)}
-            />
           </div>
         ) : (
           <div>

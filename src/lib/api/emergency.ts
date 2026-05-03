@@ -41,6 +41,7 @@ export interface InsuranceInfo {
 
 export interface PatientProfile {
   emergency_identifier: string;
+  patient_id: number | null;
   patient_name: string;
   gender: string;
   blood_type: string;
@@ -130,6 +131,14 @@ export const updateEmergencyContact = (
 
 export const deleteEmergencyContact = (id: number) =>
   apiClient.delete(`/emergency/patient/emergency-contacts/${id}`);
+
+export const updatePatientInsurance = (data: {
+  provider_name: string;
+  plan_type: "PPO" | "HMO" | "Medicaid" | "Medicare";
+  member_id: string;
+  group_number?: string | null;
+  coverage_status: "Active" | "Inactive";
+}) => apiClient.put<InsuranceInfo>("/emergency/patient/insurance", data).then((r) => r.data);
 
 // ---- Doctor APIs ----
 export const searchPatients = (q: string) =>

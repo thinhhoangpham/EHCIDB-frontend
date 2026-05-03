@@ -116,23 +116,13 @@ function EmergencyCard({ card }: { card: PatientProfile }) {
 
     if (!patientId) {
       console.error("Missing patient_id:", card);
+      alert("Cannot admit: patient record is missing an ID");
       return;
     }
 
     try {
       setAdmitting(true);
-      console.log("ASSIGN PAYLOAD:", {
-        doctor_id: Number(user.id),
-        patient_id: Number(patientId),
-      });
-
-      await assignPatient(card.patient_id);
-
-      // await assignPatient({
-      //   doctor_id: user.id,
-      //   patient_id: user.patient_id,
-      // });
-
+      await assignPatient(patientId);
       setAdmitted(true);
     } catch (err) {
       console.error(err);
