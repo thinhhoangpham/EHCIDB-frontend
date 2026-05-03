@@ -26,65 +26,16 @@ export default function RegisterPage() {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
-  // const [successMessage, setSuccessMessage] = useState("");
-  const [apiError, setApiError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
-  // const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-  //   e.preventDefault();
-
-  //   setNameError("");
-  //   setEmailError("");
-  //   setPasswordError("");
-  //   setConfirmPasswordError("");
-  //   setSuccessMessage("");
-
-  //   let isValid = true;
-
-  //   if (!name.trim()) {
-  //     setNameError("Name is required.");
-  //     isValid = false;
-  //   }
-
-  //   if (!email.trim()) {
-  //     setEmailError("Email is required.");
-  //     isValid = false;
-  //   } else if (!isValidEmail(email)) {
-  //     setEmailError("Please enter a valid email address.");
-  //     isValid = false;
-  //   }
-
-  //   if (!password.trim()) {
-  //     setPasswordError("Password is required.");
-  //     isValid = false;
-  //   } else if (password.length < 6) {
-  //     setPasswordError("Password must be at least 6 characters.");
-  //     isValid = false;
-  //   }
-
-  //   if (!confirmPassword.trim()) {
-  //     setConfirmPasswordError("Please confirm your password.");
-  //     isValid = false;
-  //   } else if (password !== confirmPassword) {
-  //     setConfirmPasswordError("Passwords do not match.");
-  //     isValid = false;
-  //   }
-
-  //   if (isValid) {
-  //     setSuccessMessage("Registration form submitted successfully.");
-  //   }
-  // };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     setNameError("");
     setEmailError("");
     setPasswordError("");
     setConfirmPasswordError("");
-    setApiError("");
-    // setSuccessMessage("");
-
+    setSuccessMessage("");
 
     let isValid = true;
 
@@ -117,20 +68,8 @@ export default function RegisterPage() {
       isValid = false;
     }
 
-    if (!isValid) return;
-
-    setIsSubmitting(true);
-    try {
-      const data = await register(name, email, password);
-      setAuth(data.user, data.access_token, data.refresh_token);
-      router.push(ROLE_DASHBOARD[data.user.role]);
-    } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Registration failed. Please try again.";
-      setApiError(message);
-    } finally {
-      setIsSubmitting(false);
+    if (isValid) {
+      setSuccessMessage("Registration form submitted successfully.");
     }
   };
 
