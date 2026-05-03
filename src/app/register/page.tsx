@@ -32,7 +32,7 @@ export default function RegisterPage() {
   const [gender, setGender] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [bloodType, setBloodType] = useState("");
-  const [bloodTypes, setBloodTypes] = useState([]);
+  const [bloodTypes, setBloodTypes] = useState<{ blood_type_code: string }[]>([]);
 
 
 
@@ -199,7 +199,7 @@ export default function RegisterPage() {
           placeholder="Select Blood Type"
           value={bloodType}
           onChange={(e) => setBloodType(e.target.value)}
-          options={bloodTypes.map((bt: any) => ({ label: bt.blood_type_code, value: bt.blood_type_code }))}
+          options={bloodTypes.map((bt) => ({ label: bt.blood_type_code, value: bt.blood_type_code }))}
         />
 
         <Input
